@@ -13,9 +13,10 @@ from homeassistant.components.number import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from luxmodbus import HOLD_REGISTERS, Measurement, RegisterDef
+from luxmodbus import HOLD_REGISTERS, Measurement, RegisterDef, encode_value, find_hold
 
 from .coordinator import LumenCoordinator
 
@@ -34,7 +35,6 @@ class LumenNumberEntityDescription(NumberEntityDescription):
 
     register_key: str
     register_address: int
-    scale: float
 
 
 def _description(defn: RegisterDef) -> LumenNumberEntityDescription:
@@ -43,7 +43,6 @@ def _description(defn: RegisterDef) -> LumenNumberEntityDescription:
         key=defn.key,
         register_key=defn.key,
         register_address=defn.address,
-        scale=defn.scale,
         name=defn.name,
         native_unit_of_measurement=defn.unit,
         device_class=_DEVICE_CLASSES.get(defn.measurement),
@@ -91,6 +90,11 @@ class LumenNumber(CoordinatorEntity[LumenCoordinator], NumberEntity):
         return value if isinstance(value, int | float) else None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Write the scaled value back to the hold register."""
-        raw = round(value / self.entity_description.scale)
+        """Encode the value (scale + bounds) and write it to the hold register."""
+        defn = find_hold(self.entity_description.register_key)
+        assert defn is not None  # description was built from HOLD_REGISTERS
+        try:
+            raw = encode_value(defn, value)
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
         await self.coordinator.async_write_register(self.entity_description.register_address, raw)

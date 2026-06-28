@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import struct
 from collections.abc import Callable
 from datetime import timedelta
 
@@ -38,6 +37,7 @@ from luxmodbus import (
     decode_flags,
     decode_holds,
     decode_inputs,
+    decode_read_response,
     set_flag,
 )
 
@@ -48,10 +48,11 @@ _LOGGER = logging.getLogger(__name__)
 # Listener notified with the registers discovered in a single ingest.
 type DiscoveryListener = Callable[[list[UnknownRegister]], None]
 
-# (start, count) blocks covering the single-phase input (0-199) and hold (0-119)
-# register maps.
-READ_BLOCKS_INPUT: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40), (120, 40), (160, 40))
-READ_BLOCKS_HOLD: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40))
+# (start, count) blocks covering the full mapped register space: input ends at
+# 232 (smart_load_power), hold at 228 (ac_couple / bat_stop_charge), so both
+# banks are polled across 0-239.
+READ_BLOCKS_INPUT: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40), (120, 40), (160, 40), (200, 40))
+READ_BLOCKS_HOLD: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40), (120, 40), (160, 40), (200, 40))
 RESPONSE_TIMEOUT = 10.0
 # A discovery sweep reads well past the known map; unsupported ranges simply
 # time out, so use a short per-block timeout to keep the whole sweep snappy.
@@ -156,29 +157,20 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
                 data.update(decode_flags(hold[flag_register.address], flag_register))
         return data
 
+    def _wrap(self, data_frame: DataFrame) -> bytes:
+        """Wrap an inner data frame in the dongle's TCP envelope and encode it."""
+        return Frame(
+            tcp_function=TcpFunction.TRANSLATED_DATA, dongle_serial=self._dongle, data=data_frame.encode()
+        ).encode()
+
     def _read_frame(self, function: DeviceFunction, start: int, count: int) -> bytes:
         """Build an encoded read request for ``count`` registers from ``start``."""
-        data = DataFrame(
-            action=0,
-            device_function=function,
-            inverter_serial=self._serial,
-            register=start,
-            value=struct.pack("<H", count),
-            has_length_byte=False,
-        ).encode()
-        return Frame(tcp_function=TcpFunction.TRANSLATED_DATA, dongle_serial=self._dongle, data=data).encode()
+        builder = DataFrame.read_input if function == DeviceFunction.READ_INPUT else DataFrame.read_hold
+        return self._wrap(builder(self._serial, start, count))
 
     def _write_frame(self, register: int, value: int) -> bytes:
         """Build an encoded WRITE_SINGLE request for one hold register."""
-        data = DataFrame(
-            action=0,
-            device_function=DeviceFunction.WRITE_SINGLE,
-            inverter_serial=self._serial,
-            register=register,
-            value=struct.pack("<H", value & 0xFFFF),
-            has_length_byte=False,
-        ).encode()
-        return Frame(tcp_function=TcpFunction.TRANSLATED_DATA, dongle_serial=self._dongle, data=data).encode()
+        return self._wrap(DataFrame.write_single(self._serial, register, value))
 
     def _parse_data_frame(self, raw: bytes) -> DataFrame | None:
         """Decode a raw frame to its inner data frame, or None if undecodable or not data."""
@@ -210,12 +202,8 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
     def _ingest(self, bank: RegisterBank, data_frame: DataFrame) -> None:
         """Merge a read response into the raw store for ``bank`` and feed discovery."""
         store = self._raw[bank]
-        values: dict[int, int] = {}
-        for offset in range(len(data_frame.value) // 2):
-            address = data_frame.register + offset
-            value = int.from_bytes(data_frame.value[offset * 2 : offset * 2 + 2], "little")
-            values[address] = value
-            store[address] = value
+        values = decode_read_response(data_frame)
+        store.update(values)
         discovered = self.discovery.observe_many(bank, values)
         if discovered:
             self._discovery_store.async_delay_save(self.discovery.to_dict, DISCOVERY_SAVE_DELAY)
@@ -279,12 +267,7 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
                 return
             words = len(data_frame.value) // 2
             if data_frame.register <= start < data_frame.register + words and not future.done():
-                future.set_result(
-                    {
-                        data_frame.register + i: int.from_bytes(data_frame.value[i * 2 : i * 2 + 2], "little")
-                        for i in range(words)
-                    }
-                )
+                future.set_result(decode_read_response(data_frame))
 
         unsubscribe = self._transport.on_frame(_await_response)
         try:

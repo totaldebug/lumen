@@ -57,8 +57,25 @@ async def test_client_mode_polls_and_decodes(hass: HomeAssistant) -> None:
     assert coordinator.data["system_charge_rate"] == 64  # hold addr 64
     assert coordinator.data["eps_enable"] is True  # reg 21 == 0b10101 -> bit 0 set
     assert coordinator.data["ac_charge_enable"] is False  # reg 21 bit 7 clear
-    # Five input blocks + three hold blocks.
-    assert len(transport.sent) == 8
+    # Six input blocks + six hold blocks (0-239 each).
+    assert len(transport.sent) == 12
+
+    await coordinator.async_shutdown()
+
+
+async def test_polls_extended_hold_range(hass: HomeAssistant) -> None:
+    """Hold registers above 119 (added from spec Table 8) are now polled and decoded."""
+    entry = _entry(hass)
+    transport = FakeTransport()
+    coordinator = LumenCoordinator(
+        hass, entry, transport, client_mode=True, dongle_serial=DONGLE, inverter_serial=SERIAL
+    )
+    await coordinator.async_setup()
+    await coordinator.async_refresh()
+
+    # FakeTransport returns each register's address as its raw value.
+    assert coordinator.data["float_charge_voltage"] == 14.4  # hold addr 144 * 0.1
+    assert coordinator.data["smart_load_on_voltage"] == 21.3  # hold addr 213 * 0.1
 
     await coordinator.async_shutdown()
 
