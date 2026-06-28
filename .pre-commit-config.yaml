@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=2000']
+  - repo: local
+    hooks:
+      # Runs in the project's uv environment so Home Assistant's types are
+      # available (an isolated mypy env would not see them).
+      - id: mypy
+        name: mypy
+        entry: uv run mypy --show-error-codes custom_components/lumen
+        language: system
+        types: [python]
+        files: ^custom_components/
+        pass_filenames: false

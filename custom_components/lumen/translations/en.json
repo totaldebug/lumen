@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your LuxPower dongle",
+        "description": "Enter your dongle's connection details. In client mode Home Assistant dials the dongle; in server mode the dongle dials Home Assistant.",
+        "data": {
+          "name": "Name",
+          "host": "Host",
+          "port": "Port",
+          "mode": "Connection mode",
+          "dongle_serial": "Dongle serial",
+          "serial": "Inverter serial"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the dongle. Check the host, port and that it is reachable.",
+      "invalid_serial": "The dongle and inverter serials must each be exactly 10 characters."
+    },
+    "abort": {
+      "already_configured": "This dongle is already configured."
+    }
+  },
+  "services": {
+    "write_register": {
+      "name": "Write register",
+      "description": "Writes a value to a single hold register on the inverter. Intended for advanced use, such as setting a register surfaced by discovery that is not yet exposed as an entity.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Lumen dongle or inverter to write to."
+        },
+        "register": {
+          "name": "Register",
+          "description": "The hold register address (0-65535)."
+        },
+        "value": {
+          "name": "Value",
+          "description": "The 16-bit value to write (0-65535)."
+        }
+      }
+    },
+    "read_register": {
+      "name": "Read register",
+      "description": "Reads a single register on demand and returns its raw value, without waiting for the next poll.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Lumen dongle or inverter to read from."
+        },
+        "register": {
+          "name": "Register",
+          "description": "The register address (0-65535)."
+        },
+        "bank": {
+          "name": "Bank",
+          "description": "Which register bank to read: input (telemetry) or hold (settings)."
+        }
+      }
+    },
+    "discover_sweep": {
+      "name": "Discover registers",
+      "description": "Reads input and hold registers across a wide range so the discovery store learns about registers Lumen does not normally poll. Reads only; nothing is written. The Undecoded registers sensor updates with whatever is found.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Lumen dongle or inverter to sweep."
+        },
+        "input_end": {
+          "name": "Input end",
+          "description": "Read input registers from 0 up to (but not including) this address."
+        },
+        "hold_end": {
+          "name": "Hold end",
+          "description": "Read hold registers from 0 up to (but not including) this address."
+        }
+      }
+    }
+  }
+}

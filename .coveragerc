@@ -1,0 +1,10 @@
+[run]
+source = custom_components/lumen
+
+omit =
+    # omit tests
+    tests/*
+
+[report]
+exclude_lines =
+    if TYPE_CHECKING:

@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "README.md"
+      - "CHANGELOG.md"
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  code-quality:
+    name: 📊 Check code quality
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The integration depends on the luxmodbus library via a local path source.
+      # Until luxmodbus is published to PyPI, fetch it as a sibling checkout so
+      # `uv sync` can resolve it.
+      - name: Checkout luxmodbus
+        run: git clone --depth 1 https://github.com/totaldebug/luxmodbus.git ../luxmodbus
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 🧪 Check tests are passing
+        run: uv run nox -s tests

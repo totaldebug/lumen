@@ -1,0 +1,27 @@
+#osx
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# cache
+__pycache__
+.idea
+.cache
+
+# python
+*.pyc
+.venv
+venv
+
+# build / tooling
+build
+dist
+.vscode/*
+*.egg-info
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+coverage.xml
+htmlcov
+.nox

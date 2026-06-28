@@ -1,0 +1,75 @@
+[project]
+name = "lumen"
+version = "0.0.1"
+description = "An efficient, modern LuxPower inverter integration for Home Assistant with register discovery."
+authors = [
+    { name = "Steven Marks", email = "marksie1988@users.noreply.github.com" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+keywords = ["luxpower", "home-assistant", "hacs", "inverter", "solar", "modbus"]
+requires-python = ">=3.13"
+
+[dependency-groups]
+dev = [
+    "pytest-homeassistant-custom-component>=0.13.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.9.0",
+    "mypy>=1.10.0",
+    "pre-commit>=3.7.1",
+    "interrogate>=1.5.0",
+    "nox>=2024.4.15",
+    "luxmodbus",
+]
+
+# This project ships as a Home Assistant custom_component (copied into config),
+# not as a built wheel, so uv treats it as a non-package workspace.
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+luxmodbus = { path = "../luxmodbus", editable = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+exclude = ["tests", "assets"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "custom_components.lumen.*"
+disallow_untyped_defs = true
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = true
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 100
+exclude = ["build", ".devcontainer", ".nox", ".cache", "tests"]
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+verbose = 0
+quiet = false
+color = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"

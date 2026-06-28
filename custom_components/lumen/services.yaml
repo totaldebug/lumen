@@ -1,0 +1,71 @@
+write_register:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: lumen
+    register:
+      required: true
+      example: 64
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+    value:
+      required: true
+      example: 50
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+
+read_register:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: lumen
+    register:
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+    bank:
+      example: input
+      default: input
+      selector:
+        select:
+          options:
+            - input
+            - hold
+
+discover_sweep:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: lumen
+    input_end:
+      example: 256
+      default: 256
+      selector:
+        number:
+          min: 1
+          max: 65536
+          mode: box
+    hold_end:
+      example: 256
+      default: 256
+      selector:
+        number:
+          min: 1
+          max: 65536
+          mode: box
