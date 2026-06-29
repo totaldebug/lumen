@@ -53,4 +53,8 @@ class FakeTransport(Transport):
         serial = inner[2:12]
         start = int.from_bytes(inner[12:14], "little")
         raw_values = [start + offset for offset in range(_BLOCK)]
+        if function == DeviceFunction.READ_HOLD and start == 0:
+            # Hold registers 7-10 carry the model/firmware code; serve the values
+            # a real EAAB unit returned so model/firmware sensors decode.
+            raw_values[7:11] = [0x4145, 0x4241, 0x1003, 0x0110]  # "EAAB-1010"
         self._emit_frame(build_read_response(request.dongle_serial, serial, function, start, raw_values))

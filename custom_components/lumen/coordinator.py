@@ -35,9 +35,11 @@ from luxmodbus import (
     Transport,
     TransportError,
     UnknownRegister,
+    decode_firmware_version,
     decode_flags,
     decode_holds,
     decode_inputs,
+    decode_model,
     decode_read_response,
     set_flag,
 )
@@ -165,6 +167,14 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
         for flag_register in FLAG_REGISTERS:
             if flag_register.address in hold:
                 data.update(decode_flags(hold[flag_register.address], flag_register))
+        # Model and firmware are assembled from several hold registers (7-10),
+        # so they are computed here rather than decoded as plain registers.
+        model = decode_model(hold)
+        if model is not None:
+            data["inverter_model"] = model
+        firmware = decode_firmware_version(hold)
+        if firmware is not None:
+            data["firmware_version"] = firmware
         return data
 
     def _wrap(self, data_frame: DataFrame) -> bytes:

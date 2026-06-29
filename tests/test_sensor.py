@@ -36,3 +36,20 @@ async def test_reenabled_parity_sensor_present(hass: HomeAssistant, setup_lumen:
     state = hass.states.get("sensor.lumen_inverter_current")
     assert state is not None
     assert float(state.state) == 0.18  # reg 18 * 0.01 A
+
+
+async def test_eps_l1_l2_voltage_from_127_128(hass: HomeAssistant, setup_lumen: MockConfigEntry) -> None:
+    """EPS L1/L2 Voltage come from registers 127/128 (value == address in the fake)."""
+    assert float(hass.states.get("sensor.lumen_eps_l1_voltage").state) == 12.7  # reg 127 * 0.1
+    assert float(hass.states.get("sensor.lumen_eps_l2_voltage").state) == 12.8  # reg 128 * 0.1
+
+
+async def test_bms_limit_discharge_deci_amp(hass: HomeAssistant, setup_lumen: MockConfigEntry) -> None:
+    """BMS Limit Discharge uses the deci-amp scale (reg 82 * 0.1)."""
+    assert float(hass.states.get("sensor.lumen_bms_limit_discharge").state) == 8.2  # reg 82 * 0.1
+
+
+async def test_inverter_model_and_firmware(hass: HomeAssistant, setup_lumen: MockConfigEntry) -> None:
+    """Model and firmware are decoded from hold registers 7-10."""
+    assert hass.states.get("sensor.lumen_inverter_model").state == "LXP-LB-EU 7K"
+    assert hass.states.get("sensor.lumen_firmware_version").state == "EAAB-1010"

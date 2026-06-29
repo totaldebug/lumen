@@ -93,9 +93,19 @@ def _difference(positive: str, negative: str) -> Callable[[Mapping[str, Any]], f
 
 
 def _status_text(data: Mapping[str, Any]) -> str | None:
-    """Map the raw status code to its operating-mode label (spec Table 9)."""
+    """Map the raw status code to its operating-state label."""
     value = data.get("status")
     return decode_status(int(value)) if isinstance(value, int | float) else None
+
+
+def _passthrough(key: str) -> Callable[[Mapping[str, Any]], str | None]:
+    """Surface a pre-computed string the coordinator stored under ``key`` (e.g. model)."""
+
+    def _compute(data: Mapping[str, Any]) -> str | None:
+        value = data.get(key)
+        return value if isinstance(value, str) else None
+
+    return _compute
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -151,6 +161,18 @@ DERIVED_DESCRIPTIONS: tuple[LumenDerivedSensorEntityDescription, ...] = (
         name="Status (Text)",
         entity_category=EntityCategory.DIAGNOSTIC,
         compute=_status_text,
+    ),
+    LumenDerivedSensorEntityDescription(
+        key="inverter_model",
+        name="Inverter Model",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        compute=_passthrough("inverter_model"),
+    ),
+    LumenDerivedSensorEntityDescription(
+        key="firmware_version",
+        name="Firmware Version",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        compute=_passthrough("firmware_version"),
     ),
 )
 
