@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -21,6 +21,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from luxmodbus import (
     FLAG_REGISTERS,
     DataFrame,
@@ -104,6 +105,7 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
         self._dongle = dongle_serial
         self._serial = inverter_serial
         self._raw: dict[RegisterBank, dict[int, int]] = {RegisterBank.INPUT: {}, RegisterBank.HOLD: {}}
+        self.last_received: datetime | None = None
         self._pending: set[tuple[int, int]] = set()
         self._received = asyncio.Event()
         self.discovery = DiscoveryStore.from_registers()
@@ -210,6 +212,7 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
     def _ingest(self, bank: RegisterBank, data_frame: DataFrame) -> None:
         """Merge a read response into the raw store for ``bank`` and feed discovery."""
         store = self._raw[bank]
+        self.last_received = dt_util.utcnow()
         values = decode_read_response(data_frame)
         store.update(values)
         discovered = self.discovery.observe_many(bank, values)

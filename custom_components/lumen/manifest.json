@@ -7,6 +7,6 @@
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/totaldebug/lumen/issues",
-  "requirements": ["luxmodbus==0.2.0"],
+  "requirements": ["luxmodbus==0.3.0"],
   "version": "0.0.1"
 }
