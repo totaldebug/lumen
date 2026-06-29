@@ -49,10 +49,18 @@ _LOGGER = logging.getLogger(__name__)
 type DiscoveryListener = Callable[[list[UnknownRegister]], None]
 
 # (start, count) blocks covering the full mapped register space: input ends at
-# 232 (smart_load_power), hold at 228 (ac_couple / bat_stop_charge), so both
-# banks are polled across 0-239.
+# 232 (smart_load_power) so it is polled across 0-239; hold ends at 259 (the
+# generator schedule times) so it is polled across 0-279.
 READ_BLOCKS_INPUT: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40), (120, 40), (160, 40), (200, 40))
-READ_BLOCKS_HOLD: tuple[tuple[int, int], ...] = ((0, 40), (40, 40), (80, 40), (120, 40), (160, 40), (200, 40))
+READ_BLOCKS_HOLD: tuple[tuple[int, int], ...] = (
+    (0, 40),
+    (40, 40),
+    (80, 40),
+    (120, 40),
+    (160, 40),
+    (200, 40),
+    (240, 40),
+)
 RESPONSE_TIMEOUT = 10.0
 # A discovery sweep reads well past the known map; unsupported ranges simply
 # time out, so use a short per-block timeout to keep the whole sweep snappy.

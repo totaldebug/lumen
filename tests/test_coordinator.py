@@ -57,8 +57,8 @@ async def test_client_mode_polls_and_decodes(hass: HomeAssistant) -> None:
     assert coordinator.data["system_charge_rate"] == 64  # hold addr 64
     assert coordinator.data["eps_enable"] is True  # reg 21 == 0b10101 -> bit 0 set
     assert coordinator.data["ac_charge_enable"] is False  # reg 21 bit 7 clear
-    # Six input blocks + six hold blocks (0-239 each).
-    assert len(transport.sent) == 12
+    # Six input blocks (0-239) + seven hold blocks (0-279).
+    assert len(transport.sent) == 13
 
     await coordinator.async_shutdown()
 
@@ -76,6 +76,7 @@ async def test_polls_extended_hold_range(hass: HomeAssistant) -> None:
     # FakeTransport returns each register's address as its raw value.
     assert coordinator.data["float_charge_voltage"] == 14.4  # hold addr 144 * 0.1
     assert coordinator.data["smart_load_on_voltage"] == 21.3  # hold addr 213 * 0.1
+    assert coordinator.raw_hold(256) == 256  # generator schedule time in the 240-279 block
 
     await coordinator.async_shutdown()
 
