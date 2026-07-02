@@ -81,6 +81,58 @@ async def test_polls_extended_hold_range(hass: HomeAssistant) -> None:
     await coordinator.async_shutdown()
 
 
+class DroppingTransport(FakeTransport):
+    """Like FakeTransport but silently drops the response for one hold block.
+
+    Models the real dongle dropping a pipelined request: the block that never
+    answers must not stall the rest of the poll (blocks are polled one at a time).
+    """
+
+    def __init__(self, drop_hold_start: int) -> None:
+        super().__init__()
+        self._drop = drop_hold_start
+
+    async def send(self, frame: bytes) -> None:
+        from luxmodbus import Frame
+
+        self.sent.append(frame)
+        inner = Frame.decode(frame).data
+        function = inner[1]
+        if function not in (DeviceFunction.READ_INPUT, DeviceFunction.READ_HOLD):
+            return
+        start = int.from_bytes(inner[12:14], "little")
+        if function == DeviceFunction.READ_HOLD and start == self._drop:
+            return  # drop this block's response
+        serial = inner[2:12]
+        raw_values = [start + offset for offset in range(40)]
+        self._emit_frame(build_read_response(Frame.decode(frame).dongle_serial, serial, function, start, raw_values))
+
+
+async def test_dropped_block_does_not_stall_poll(hass: HomeAssistant, monkeypatch) -> None:
+    """A hold block that never responds still lets every other block decode."""
+    from custom_components.lumen import coordinator as coordinator_module
+
+    monkeypatch.setattr(coordinator_module, "POLL_BLOCK_TIMEOUT", 0.05)
+    entry = _entry(hass)
+    transport = DroppingTransport(drop_hold_start=120)
+    coordinator = LumenCoordinator(
+        hass, entry, transport, client_mode=True, dongle_serial=DONGLE, inverter_serial=SERIAL
+    )
+    await coordinator.async_setup()
+    await coordinator.async_refresh()
+
+    # The dropped 120-159 block is absent...
+    assert coordinator.raw_hold(144) is None
+    # ...but blocks polled after it still arrive (would be lost under a batched poll).
+    assert coordinator.raw_hold(160) == 160
+    assert coordinator.raw_hold(256) == 256
+    assert coordinator.data["battery_voltage"] == 0.4  # input block still decoded
+    # All 13 blocks are still sent even though one never answered.
+    assert len(transport.sent) == 13
+
+    await coordinator.async_shutdown()
+
+
 async def test_discovery_records_unmapped(hass: HomeAssistant) -> None:
     """Addresses polled but absent from the map are recorded for discovery."""
     entry = _entry(hass)

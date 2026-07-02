@@ -65,6 +65,9 @@ READ_BLOCKS_HOLD: tuple[tuple[int, int], ...] = (
     (240, 40),
 )
 RESPONSE_TIMEOUT = 10.0
+# Per-block timeout for the regular poll: blocks are polled sequentially, so keep
+# this short enough that a slow/unresponsive block does not stall the whole cycle.
+POLL_BLOCK_TIMEOUT = 3.0
 # A discovery sweep reads well past the known map; unsupported ranges simply
 # time out, so use a short per-block timeout to keep the whole sweep snappy.
 SWEEP_TIMEOUT = 3.0
@@ -244,21 +247,27 @@ class LumenCoordinator(DataUpdateCoordinator[LumenData]):
 
         requests = [(DeviceFunction.READ_INPUT, start, count) for start, count in READ_BLOCKS_INPUT]
         requests += [(DeviceFunction.READ_HOLD, start, count) for start, count in READ_BLOCKS_HOLD]
-        self._pending = {(function, start) for function, start, _ in requests}
-        self._received.clear()
-        try:
-            for function, start, count in requests:
+        # The dongle is a single-transaction Modbus bridge: pipelining the whole
+        # burst makes it drop responses (e.g. the hold 120-159 block), so poll one
+        # block at a time, waiting for each response before sending the next.
+        missing: list[tuple[int, int]] = []
+        for function, start, count in requests:
+            self._pending = {(function, start)}
+            self._received.clear()
+            try:
                 await self._transport.send(self._read_frame(function, start, count))
-        except TransportError as err:
-            raise UpdateFailed(f"failed to send read request: {err}") from err
+            except TransportError as err:
+                raise UpdateFailed(f"failed to send read request: {err}") from err
+            try:
+                async with asyncio.timeout(POLL_BLOCK_TIMEOUT):
+                    await self._received.wait()
+            except TimeoutError:
+                missing.append((function, start))
 
-        try:
-            async with asyncio.timeout(RESPONSE_TIMEOUT):
-                await self._received.wait()
-        except TimeoutError:
+        if missing:
             if not self._raw[RegisterBank.INPUT] and not self._raw[RegisterBank.HOLD]:
                 raise UpdateFailed("no response from inverter") from None
-            _LOGGER.debug("partial response; missing blocks: %s", self._pending)
+            _LOGGER.debug("partial response; missing blocks: %s", missing)
 
         return self._decode()
 
